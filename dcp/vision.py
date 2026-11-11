@@ -3,6 +3,8 @@
 Everything here degrades gracefully: without torch/open_clip the tool still works,
 it just can't choose B-roll moments by itself.
 """
+import os
+
 import numpy as np
 
 _clip = None
@@ -25,9 +27,19 @@ def _load():
         import torch
         dev = "cuda" if torch.cuda.is_available() else "cpu"
         from . import ff
-        ff.log(f"    loading the AI picker on {dev} (the first time downloads about 600 MB)")
+        from .config import ASSETS
+        # A model file dropped into assets/models is used as-is (no download).
+        mdir = os.path.join(ASSETS, "models")
+        local = [f for f in sorted(os.listdir(mdir))
+                 if f.lower().endswith((".bin", ".safetensors", ".pt")) and "clip" in f.lower()]
+        if local:
+            ff.log(f"    loading the AI picker on {dev} from assets/models/{local[0]}")
+            weights = os.path.join(mdir, local[0])
+        else:
+            ff.log(f"    loading the AI picker on {dev} (the first time downloads about 600 MB)")
+            weights = "laion2b_s34b_b79k"
         model, _, pre = open_clip.create_model_and_transforms(
-            "ViT-B-32", pretrained="laion2b_s34b_b79k", device=dev)
+            "ViT-B-32", pretrained=weights, device=dev)
         model.eval()
         _clip = (model, pre, open_clip.get_tokenizer("ViT-B-32"), dev)
     return _clip
