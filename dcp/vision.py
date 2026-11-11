@@ -41,6 +41,7 @@ def _load():
         model, _, pre = open_clip.create_model_and_transforms(
             "ViT-B-32", pretrained=weights, device=dev)
         model.eval()
+        ff.log("    AI picker ready")
         _clip = (model, pre, open_clip.get_tokenizer("ViT-B-32"), dev)
     return _clip
 

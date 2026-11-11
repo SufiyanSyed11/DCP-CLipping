@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import subprocess
 import sys
 
 import cv2
@@ -133,40 +134,45 @@ def face_fx(frame):
     return float(min(max((cx - CW / 2) / (w - CW), 0), 1))
 
 
-def embeddings(path):
-    """One CLIP vector per second of video (cached next to the file)."""
+def embeddings(path, log=None):
+    """One CLIP vector per second of video (cached next to the file).
+
+    Frames come from a single ffmpeg pass. (Seeking to each second with OpenCV took about
+    a second per frame on Windows, i.e. many minutes per video.)"""
     npz = path + ".clip.npz"
     if os.path.exists(npz):
         d = np.load(npz)
         return d["t"], d["e"]
-    cap = cv2.VideoCapture(path)
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    total = cap.get(cv2.CAP_PROP_FRAME_COUNT) / fps
-    ts, frames, embs = [], [], []
-    t = 0.5
-    while t < total - 0.3:
-        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
-        ok, fr = cap.read()
-        if not ok:
+    w, h = 384, 216
+    proc = subprocess.Popen(
+        ["ffmpeg", "-v", "error", "-nostdin", "-i", path, "-an",
+         "-vf", f"fps=1,scale={w}:{h}", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
+        stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
+    size, frames, embs, n = w * h * 3, [], [], 0
+    while True:
+        buf = proc.stdout.read(size)
+        if len(buf) < size:
             break
-        ts.append(t)
-        frames.append(cv2.resize(fr, (384, 216)))
+        frames.append(np.frombuffer(buf, np.uint8).reshape(h, w, 3))
+        n += 1
         if len(frames) == 32:
             embs.append(vision.embed_images(frames))
             frames = []
-        t += 1.0
-    cap.release()
+        if log and n % 120 == 0:
+            log(f"      scanned {n // 60} min of the video")
+    proc.stdout.close()
+    proc.wait()
     if frames:
         embs.append(vision.embed_images(frames))
     e = np.concatenate(embs) if embs else np.zeros((0, 512), np.float32)
-    t_arr = np.array(ts[:len(e)])
+    t_arr = np.arange(len(e), dtype=float)
     np.savez(npz, t=t_arr, e=e)
     return t_arr, e
 
 
-def best_windows(path, text, k=3, span=3):
+def best_windows(path, text, k=3, span=3, log=None):
     """Top moments (>= `span` s inside one scene) that look most like `text`."""
-    ts, e = embeddings(path)
+    ts, e = embeddings(path, log)
     if len(ts) < span:
         return []
     tv = vision.embed_texts([f"a photo of {text}"])[0]
@@ -183,7 +189,7 @@ def best_windows(path, text, k=3, span=3):
             out.append((score, i))
         if len(out) >= k:
             break
-    return [{"t": float(ts[i]) - 0.3, "score": score, "emb": e[i + span // 2]} for score, i in out]
+    return [{"t": max(0.0, float(ts[i]) - 0.3), "score": score, "emb": e[i + span // 2]} for score, i in out]
 
 
 _people = None
@@ -231,7 +237,7 @@ def candidates(item, cfg, thumb_dir, tag, log=print):
             wins = [{"t": v["fixed_t"], "score": 1.0}]
         elif ai:
             log("    picking the best moments")
-            wins = best_windows(path, text)
+            wins = best_windows(path, text, log=log)
         else:
             d = ff.duration(path)
             wins = [{"t": d * f, "score": 0.0} for f in (0.2, 0.45, 0.7)]
