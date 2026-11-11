@@ -22,6 +22,9 @@ DEFAULTS = {
     "shot_seconds": 2.6,           # average length of a B-roll shot
     "rejected_channels": ["Fight Hub TV", "FightHype", "BatmanBoxing",
                           "Punsh Drunk", "GSD Boxing"],
+    # search results whose title contains one of these are skipped (talking heads, overlays)
+    "rejected_title_words": ["reaction", "reacts", "podcast", "breakdown", "prediction",
+                             "preview", "review", "explained", "interview", "press conference"],
     "profanity": ["fuck", "shit", "bitch", "motherfuck", "nigga", "pussy", "cunt"],
     "port": 8765,
 }

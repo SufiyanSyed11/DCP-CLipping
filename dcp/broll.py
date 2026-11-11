@@ -38,6 +38,8 @@ def search(query, cfg):
         dur = e.get("duration") or 0
         if any(b in ch.lower() for b in bad) or not e.get("id") or dur and dur < 6:
             continue
+        if any(w in (e.get("title") or "").lower() for w in cfg.get("rejected_title_words", [])):
+            continue
         out.append({"vid": e["id"], "title": e.get("title") or "", "channel": ch, "duration": dur})
     # short videos first: they download whole and fast; long ones need a slow partial download
     out.sort(key=lambda v: not (0 < v["duration"] <= FULL_MAX))

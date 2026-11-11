@@ -141,17 +141,39 @@ def step_cut(cfg, proj, clip, log):
     src = os.path.join(d, "src.mp4")
     if not os.path.exists(src) or not any(clip["keep"]):
         step_find(cfg, proj, clip, log)
-    segs = cut.segments(clip["words"], clip["keep"], ff.rms_trace(src), clip.get("adj"))
-    if not segs:
-        raise RuntimeError("Nothing selected to cut.")
-    log(f"  cutting {len(segs)} part(s): " + ", ".join(f"{a:.2f}-{b:.2f}" for a, b in segs))
-    cut.build_p0(src, segs, os.path.join(d, "P0.mp4"))
-    removed = cut.remove_pauses(os.path.join(d, "P0.mp4"), os.path.join(d, "P1.mp4"),
-                                cfg["pause_threshold"], cfg["pause_min"], cfg["pause_margin"])
-    clip["frames"] = ff.frame_count(os.path.join(d, "P1.mp4"))
-    clip["dur"] = round(clip["frames"] / ff.FPS, 3)
-    log(f"  removed {removed:.2f}s of pauses, clip is {clip['dur']:.1f}s")
-    raw = words.transcribe(os.path.join(d, "P1.mp4"), cfg)
+    rms = ff.rms_trace(src)
+    kept = [w for w, k in zip(clip["words"], clip["keep"]) if k]
+    first, last = words.norm(kept[0][0]), words.norm(kept[-1][0])
+    user = clip.get("adj") or {}
+    auto = {"start": 0.0, "end": 0.0}
+    for attempt in range(3):
+        adj = {"start": float(user.get("start", 0)) + auto["start"],
+               "end": float(user.get("end", 0)) + auto["end"]}
+        segs = cut.segments(clip["words"], clip["keep"], rms, adj)
+        if not segs:
+            raise RuntimeError("Nothing selected to cut.")
+        log(f"  cutting {len(segs)} part(s): " + ", ".join(f"{a:.2f}-{b:.2f}" for a, b in segs))
+        cut.build_p0(src, segs, os.path.join(d, "P0.mp4"))
+        removed = cut.remove_pauses(os.path.join(d, "P0.mp4"), os.path.join(d, "P1.mp4"),
+                                    cfg["pause_threshold"], cfg["pause_min"], cfg["pause_margin"])
+        clip["frames"] = ff.frame_count(os.path.join(d, "P1.mp4"))
+        clip["dur"] = round(clip["frames"] / ff.FPS, 3)
+        log(f"  removed {removed:.2f}s of pauses, clip is {clip['dur']:.1f}s")
+        raw = words.transcribe(os.path.join(d, "P1.mp4"), cfg)
+        # The cut must open on the slate's first word and close on its last. If a stray
+        # neighbouring word slipped in ("And to me..."), trim it and cut again.
+        again = False
+        if len(raw) > 3 and attempt < 2:
+            if words.norm(raw[0][0]) != first and words.norm(raw[1][0]) == first:
+                auto["start"] += max(0.05, raw[1][1] - 0.04)
+                log(f"  the cut opened on a stray word ({raw[0][0]!r}); trimming the start")
+                again = True
+            if words.norm(raw[-1][0]) != last and words.norm(raw[-2][0]) == last:
+                auto["end"] -= max(0.05, clip["dur"] - raw[-2][2] - 0.08)
+                log(f"  the cut closed on a stray word ({raw[-1][0]!r}); trimming the end")
+                again = True
+        if not again:
+            break
     toks = captions.apply_fixes(raw, captions.parse_fixes(proj.get("fixes", "")))
     clip["tokens"] = captions.smooth(toks, clip["dur"])
     retime(cfg, clip)
