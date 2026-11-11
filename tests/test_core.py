@@ -81,3 +81,23 @@ class CaptionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CueTest(unittest.TestCase):
+    def test_cue_forms(self):
+        items, notes = slate.parse_broll(
+            '"locked the door": heavy door being bolted; Blaydes bloodied face ("against Curtis Blades"); '
+            'final bell. No text shots.')
+        self.assertEqual([(i["cue"], i["match"]) for i in items],
+                         [("locked the door", "heavy door being bolted"),
+                          ("against Curtis Blades", "Blaydes bloodied face"), ("", "final bell")])
+
+    def test_cue_timing(self):
+        items = [{"match": "fight footage", "hint": "", "cue": ""},
+                 {"match": "heavy door being bolted", "hint": "", "cue": "locked the door"}]
+        toks = [[w, 0.4 * i, 0.4 * i + 0.3] for i, w in enumerate(
+            "to me a fight is to break the guy they should have locked the door we should have fought".split())]
+        slots = broll.build_timeline(items, toks, 8.0)
+        door = next(s for s in slots if s["item"] == 1)
+        self.assertEqual(door["word"], "locked the door")
+        self.assertAlmostEqual(door["start"], 0.4 * 12 - 0.15)

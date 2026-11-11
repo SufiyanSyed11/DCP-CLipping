@@ -133,6 +133,7 @@ function renderClip() {
     h += `<div class="item"><div class="row" style="margin:0">
         <b>${i + 1}</b>
         <input data-b="${i}" data-f="match" value="${esc(it.match)}" style="flex:1" title="What the shot should show">
+        <input data-b="${i}" data-f="cue" value="${esc(it.cue || "")}" style="flex:1" placeholder="shown on the words… (e.g. locked the door)" title="The spoken words this shot should appear on">
         <input data-b="${i}" data-f="search" value="${esc(it.search)}" style="flex:1" title="YouTube search words">
         <button data-del="${i}" title="Remove this line">✕</button></div>`;
     if (cl.length) {
@@ -157,7 +158,7 @@ function renderClip() {
       ${c.slots.map((s, i) => `<tr><td>${s.start.toFixed(1)}–${s.end.toFixed(1)}s</td>
         <td>${esc(c.tokens.filter((t) => t[1] >= s.start - 0.05 && t[1] < s.end - 0.05).map((t) => t[0]).join(" "))}</td>
         <td><select data-slot="${i}">${c.broll.map((b, k) => `<option value="${k}" ${k === s.item ? "selected" : ""}>${k + 1}. ${esc(b.match)}</option>`).join("")}</select></td>
-        <td class="dim small">${s.word ? `said “${esc(s.word)}”` : "fills the gap"}</td></tr>`).join("")}</table>
+        <td class="dim small">${s.word ? `said “${esc(s.word)}”` : "no matching words, fills the gap"}</td></tr>`).join("")}</table>
       <div class="row"><button id="retime">Re-match shots to the words</button></div>`;
   }
 
@@ -212,7 +213,7 @@ function wire() {
     };
   });
   $("#addline").onclick = () => {
-    clip.broll.push({ search: "", match: "", hint: "", fixed: null });
+    clip.broll.push({ search: "", match: "", hint: "", fixed: null, cue: "" });
     rerender({ broll: clip.broll });
   };
   all(".cand").forEach((el) => {

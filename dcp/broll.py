@@ -293,6 +293,10 @@ def same_word(a, b):
 
 def spoken_times(item, tokens):
     """Times at which the clip's audio says one of the B-roll line's subject words."""
+    if item.get("cue"):
+        from .words import find_phrase
+        score, hit = find_phrase(tokens, item["cue"])
+        return [(tokens[hit[0]][1], item["cue"])] if hit and score >= 0.7 else []
     kws = keywords(item)
     hits = []
     for w, s, _e in tokens:
@@ -311,7 +315,10 @@ def build_timeline(items, tokens, dur, shot_len=2.6):
     for idx, it in enumerate(items):
         for t, word in spoken_times(it, tokens):
             anchors.append((max(0.0, t - 0.15), idx, word))
-    anchors.sort()
+    anchors.sort(key=lambda a: (a[0], not items[a[1]].get("cue")))
+    cued = [a for a in anchors if items[a[1]].get("cue")]
+    anchors = [a for a in anchors if items[a[1]].get("cue")
+               or all(abs(a[0] - c[0]) >= 1.2 for c in cued)]
     kept = []
     for a in anchors:
         if a[0] < dur - 0.8 and (not kept or a[0] - kept[-1][0] >= 1.2):

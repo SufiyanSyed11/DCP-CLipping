@@ -43,12 +43,58 @@ def split_outside_parens(text, seps=";,"):
     return [x.strip() for x in out if x.strip()]
 
 
-def parse_broll(text):
-    """Turns the B-roll line into a list of {search, match, fixed} items plus notes.
+def _item(part, head=""):
+    """One B-roll item. It may carry the spoken words it belongs on, in quotes:
+    '"locked the door": door being bolted'   or   'door being bolted ("locked the door")'."""
+    part = re.sub(r"(?i)^(then|and)\s+", "", part).strip()
+    cue = ""
+    q = QUOTE.search(part)
+    if q:
+        cue = q.group(1).strip(" .,")
+        part = (part[:q.start()] + " " + part[q.end():])
+        part = re.sub(r"\(\s*(?:on|at|over|when)?\s*\)|\[\s*(?:on|at|over|when)?\s*\]", " ", part, flags=re.I)
+        part = re.sub(r"(?i)^\s*(?:on|at|over|when)?\s*(?:->|=>|=|:|-|\u2192)\s*", "", part.strip())
+        part = re.sub(r"(?i)\s*(?:->|=>|=|:|-|\u2192|\bon|\bat|\bover|\bwhen)\s*$", "", part.strip())
+    fixed = None
+    fm = re.search(r"(?:v=|youtu\.be/|\b)" + YT_ID + r"\b\S*\s+" + RANGE.pattern, part)
+    if fm and re.search(r"[0-9_-]|[a-z][A-Z]", fm.group(1)):
+        fixed = {"vid": fm.group(1), "t": seconds(fm.group(2)), "t_end": seconds(fm.group(3))}
+        part = part[:fm.start()].strip(" :-,") or fm.group(1)
+    hint = " ".join(re.findall(r"\(([^)]*)\)", part))
+    plain = re.sub(r"\([^)]*\)", "", part)
+    plain = re.sub(r"(?i)\s+if (clean|available|usable)\b.*$", "", plain).strip(" .")
+    if not plain:
+        plain = cue
+    if not plain:
+        return None
+    search = plain
+    if head:
+        search = re.sub(r"(?i)\b(official|footage)\b", "", head).strip() + " " + plain
+    return {"search": search, "match": plain, "hint": hint, "fixed": fixed, "cue": cue}
 
-    A line may name an exact source: 'Floyd belts Ck_l3DOg9iQ 0:56-1:05'.
+
+def parse_broll(text):
+    """Turns the B-roll line into a list of {search, match, cue, fixed} items plus notes.
+
+    An item may name the spoken words it goes on ('"locked the door": door being bolted')
+    and/or an exact source ('Floyd belts Ck_l3DOg9iQ 0:56-1:05').
     """
     items, notes = [], []
+    if QUOTE.search(text):                      # cue style: items are separated by ';' only
+        keep = []
+        for sent in re.split(r"(?<=[.!?])\s+", text.strip()):
+            if re.match(r"(?i)(no|avoid|never|don't|check)\b", sent) and not QUOTE.search(sent):
+                notes.append(sent.strip().rstrip("."))
+            else:
+                keep.append(sent)
+        for part in split_outside_parens(" ".join(keep).rstrip("."), ";"):
+            if re.match(r"(?i)(no|avoid|never|don't|check)\b", part) and not QUOTE.search(part):
+                notes.append(part.rstrip("."))
+                continue
+            it = _item(part)
+            if it:
+                items.append(it)
+        return items, " ".join(notes)
     for sent in re.split(r"(?<=[.!?])\s+", text.strip()):
         sent = sent.strip().rstrip(".")
         if not sent:
@@ -62,23 +108,9 @@ def parse_broll(text):
             head, sent = m.group(1).strip(), m.group(2)
         seps = ";" if ";" in sent else ";,"
         for part in split_outside_parens(sent, seps):
-            part = re.sub(r"(?i)^(then|and)\s+", "", part).strip()
-            fixed = None
-            fm = re.search(r"(?:v=|youtu\.be/|\b)" + YT_ID + r"\b\S*\s+" + RANGE.pattern, part)
-            if fm and re.search(r"[0-9_-]|[a-z][A-Z]", fm.group(1)):
-                fixed = {"vid": fm.group(1), "t": seconds(fm.group(2)),
-                         "t_end": seconds(fm.group(3))}
-                part = part[:fm.start()].strip(" :-,") or fm.group(1)
-            hint = " ".join(re.findall(r"\(([^)]*)\)", part))
-            plain = re.sub(r"\([^)]*\)", "", part)
-            plain = re.sub(r"(?i)\s+if (clean|available|usable)\b.*$", "", plain).strip(" .")
-            if not plain:
-                continue
-            search = plain
-            if head:
-                h = re.sub(r"(?i)\b(official|footage)\b", "", head).strip()
-                search = f"{h} {plain}"
-            items.append({"search": search, "match": plain, "hint": hint, "fixed": fixed})
+            it = _item(part, head)
+            if it:
+                items.append(it)
     return items, " ".join(notes)
 
 
