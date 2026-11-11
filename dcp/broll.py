@@ -19,31 +19,38 @@ real best men only people showing if clean prep""".split())
 
 # ---------------------------------------------------------------- search / download
 def search(query, cfg):
+    """YouTube results for a B-roll line, best candidates first. If the full wording finds
+    nothing, shorter versions of it are tried ("Hokit vs Blades bloody exchanges" ->
+    "Hokit vs Blades")."""
     n = int(cfg["broll_search_results"])
-    try:
-        r = ff.run([sys.executable, "-m", "yt_dlp", "--no-warnings", "--flat-playlist", "-J",
-                    "--socket-timeout", "30", f"ytsearch{n}:{query}"], check=False, timeout=120)
-    except RuntimeError:
-        return []
-    try:
-        entries = json.loads(r.stdout).get("entries") or []
-    except Exception:
-        return []
     bad = [c.lower() for c in cfg["rejected_channels"]]
-    out = []
-    for e in entries:
-        if not e:
-            continue
-        ch = (e.get("channel") or e.get("uploader") or "")
-        dur = e.get("duration") or 0
-        if any(b in ch.lower() for b in bad) or not e.get("id") or dur and dur < 6:
-            continue
-        if any(w in (e.get("title") or "").lower() for w in cfg.get("rejected_title_words", [])):
-            continue
-        out.append({"vid": e["id"], "title": e.get("title") or "", "channel": ch, "duration": dur})
-    # short videos first: they download whole and fast; long ones need a slow partial download
-    out.sort(key=lambda v: not (0 < v["duration"] <= FULL_MAX))
-    return out
+    weak = cfg.get("rejected_title_words", [])
+    ws = query.split()
+    tries = [query] + [" ".join(ws[:k]) for k in range(len(ws) - 1, 2, -1)]
+    for q in tries:
+        try:
+            r = ff.run([sys.executable, "-m", "yt_dlp", "--no-warnings", "--flat-playlist", "-J",
+                        "--socket-timeout", "30", f"ytsearch{n}:{q}"], check=False, timeout=120)
+            entries = json.loads(r.stdout).get("entries") or []
+        except Exception:
+            entries = []
+        out = []
+        for e in entries:
+            if not e or not e.get("id"):
+                continue
+            ch = (e.get("channel") or e.get("uploader") or "")
+            dur = e.get("duration") or 0
+            if any(b in ch.lower() for b in bad) or dur and dur < 6:
+                continue
+            title = e.get("title") or ""
+            out.append({"vid": e["id"], "title": title, "channel": ch, "duration": dur,
+                        "weak": any(w in title.lower() for w in weak)})
+        if out:
+            # talking-head style titles (reaction, podcast...) last; then short videos first,
+            # because they download whole and fast
+            out.sort(key=lambda v: (v["weak"], not (0 < v["duration"] <= FULL_MAX)))
+            return out
+    return []
 
 
 def download(vid, cfg, duration=0, full=False):

@@ -16,13 +16,13 @@ DEFAULTS = {
     "pause_threshold": 150,        # RMS below this counts as silence (pause removal)
     "pause_min": 0.22,
     "pause_margin": 0.08,
-    "broll_search_results": 6,     # YouTube results looked at per B-roll line
+    "broll_search_results": 10,     # YouTube results looked at per B-roll line
     "broll_downloads": 2,          # videos downloaded per B-roll line
     "broll_max_seconds": 480,      # only the first N seconds of each video are fetched
     "shot_seconds": 2.6,           # average length of a B-roll shot
     "rejected_channels": ["Fight Hub TV", "FightHype", "BatmanBoxing",
                           "Punsh Drunk", "GSD Boxing"],
-    # search results whose title contains one of these are skipped (talking heads, overlays)
+    # search results with these words in the title are tried last (talking heads, overlays)
     "rejected_title_words": ["reaction", "reacts", "podcast", "breakdown", "prediction",
                              "preview", "review", "explained", "interview", "press conference"],
     "profanity": ["fuck", "shit", "bitch", "motherfuck", "nigga", "pussy", "cunt"],

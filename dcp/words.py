@@ -8,8 +8,9 @@ import numpy as np
 _model = None
 
 
-def transcribe(path, cfg):
-    """Returns [[word, start, end], ...] in the file's own time."""
+def transcribe(path, cfg, start=None, dur=None):
+    """Returns [[word, start, end], ...] in the file's own time.
+    With start/dur only that stretch is transcribed (times are then relative to `start`)."""
     global _model
     from faster_whisper import WhisperModel
     if _model is None:
@@ -18,8 +19,11 @@ def transcribe(path, cfg):
                               compute_type="int8" if dev == "cpu" else "float16")
     # Decode with ffmpeg ourselves and hand whisper the samples. (Passing a file makes
     # faster-whisper open it with PyAV, which breaks on some PyAV versions.)
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-i", path, "-vn", "-ac", "1",
-                          "-ar", "16000", "-f", "s16le", "-"], capture_output=True).stdout
+    part = ([] if start is None else ["-ss", f"{max(0, start):.3f}"]) + \
+           ([] if dur is None else ["-t", f"{dur:.3f}"])
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-nostdin"] + part + ["-i", path, "-vn",
+                          "-ac", "1", "-ar", "16000", "-f", "s16le", "-"],
+                         capture_output=True).stdout
     audio = np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
     if len(audio) < 1600:
         return []
