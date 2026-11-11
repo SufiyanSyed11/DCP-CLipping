@@ -1,0 +1,8 @@
+work/
+output/
+config.json
+.venv/
+__pycache__/
+*.pyc
+assets/bgm_under.mp3
+assets/emoji/*.png

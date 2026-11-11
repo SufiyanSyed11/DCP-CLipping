@@ -1,0 +1,3 @@
+# Optional: lets the tool pick B-roll moments by itself (install torch first, see setup_ai.bat)
+open_clip_torch>=2.24
+easyocr>=1.7

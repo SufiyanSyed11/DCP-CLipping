@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DCP Clipper</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>DCP Clipper</h1>
+  <span id="badges"></span>
+  <span class="grow"></span>
+  <span id="job"></span>
+  <label class="btn primary">Load slate (.docx)<input type="file" id="file" accept=".docx" hidden></label>
+</header>
+<div id="layout">
+  <aside>
+    <select id="projects"></select>
+    <div id="settings"></div>
+    <div id="clips"></div>
+  </aside>
+  <main id="main"><p class="empty">Load a clip slate document to begin.</p></main>
+</div>
+<details id="logbox" open><summary>Activity log</summary><pre id="log"></pre></details>
+<script src="/static/app.js"></script>
+</body>
+</html>
