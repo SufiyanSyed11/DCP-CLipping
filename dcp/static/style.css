@@ -30,7 +30,7 @@ button:disabled { opacity:.45; cursor:default; }
 .clip:hover { background:#262a32; } .clip.sel { background:#2c3340; }
 .dot { width:9px; height:9px; border-radius:50%; background:#555; flex:none; position:relative; top:1px; }
 .dot.found,.dot.cut,.dot.broll { background:var(--warn); } .dot.rendered,.dot.packed { background:var(--ok); }
-.dot.err { background:var(--bad); }
+.dot.failed { background:var(--bad); }
 .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0; }
 .note { background:#33290f; border:1px solid #5c4a17; color:#f1d48a; padding:6px 10px; border-radius:6px; margin:8px 0; }
 .err { background:#3a1717; border:1px solid #7a2c2a; color:#ffb4b1; padding:6px 10px; border-radius:6px; margin:8px 0; white-space:pre-wrap; }

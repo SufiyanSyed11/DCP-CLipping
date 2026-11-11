@@ -56,7 +56,7 @@ function renderSide() {
     run(["find", "cut", "broll", "render"], "all");
   $("#clips").innerHTML = p.clips.map((c) => `
     <div class="clip ${c.n === cur.n ? "sel" : ""}" data-n="${c.n}">
-      <span class="dot ${c.error ? "err" : c.status}" title="${esc(c.error || c.status)}"></span>
+      <span class="dot ${c.error ? "failed" : c.status}" title="${esc(c.error || c.status)}"></span>
       <span>${c.n}. ${esc(c.title)}</span></div>`).join("");
   document.querySelectorAll(".clip").forEach((el) => { el.onclick = () => openClip(+el.dataset.n); });
 }
