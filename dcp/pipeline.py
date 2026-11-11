@@ -2,6 +2,8 @@
 import json
 import os
 import re
+import threading
+import time
 from difflib import SequenceMatcher
 
 from . import broll, captions, cut, ff, pack as packer, render, slate, source, words
@@ -21,16 +23,34 @@ def cdir(cfg, s, n):
     return os.path.join(pdir(cfg, s), f"clip{int(n):02d}")
 
 
+_io = threading.RLock()        # the web threads read these files while the worker writes them
+
+
 def _read(path):
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    with _io:
+        for attempt in range(20):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    return json.load(f)
+            except PermissionError:
+                if attempt == 19:
+                    raise
+                time.sleep(0.1)
 
 
 def _write(path, data):
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp, path)
+    with _io:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        for attempt in range(40):          # Windows refuses the swap while anything has the
+            try:                           # file open (antivirus, search indexer): wait and retry
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == 39:
+                    raise
+                time.sleep(0.1)
 
 
 def load_project(cfg, s):
