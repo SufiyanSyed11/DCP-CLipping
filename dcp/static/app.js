@@ -28,6 +28,7 @@ async function poll() {
   log.scrollTop = log.scrollHeight;
   if (!cur.slug && S.projects.length) cur.slug = S.projects[S.projects.length - 1].slug;
   renderSide();
+  if (cur.slug && cur.n === null) $("#main").innerHTML = '<p class="empty">Pick a clip on the left to see it. Red dot = failed, yellow = in progress, green = rendered.</p>';
   if (lastRunning && lastRunning !== S.running && cur.n !== null) await openClip(cur.n);
   else if (!lastRunning && S.running && clip) renderClip();
   lastRunning = S.running;
@@ -60,7 +61,7 @@ function renderSide() {
   document.querySelectorAll(".clip").forEach((el) => { el.onclick = () => openClip(+el.dataset.n); });
 }
 
-$("#projects").onchange = (e) => { cur = { slug: e.target.value, n: null }; clip = null; $("#main").innerHTML = ""; renderSide(); };
+$("#projects").onchange = (e) => { cur = { slug: e.target.value, n: null }; clip = null; $("#main").innerHTML = '<p class="empty">Pick a clip on the left.</p>'; renderSide(); };
 $("#file").onchange = async (e) => {
   const fd = new FormData();
   fd.append("file", e.target.files[0]);

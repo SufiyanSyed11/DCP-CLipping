@@ -1,9 +1,9 @@
 """Speech-to-text with word times, and fuzzy phrase lookup in the result."""
-import os
 import re
+import subprocess
 from difflib import SequenceMatcher
 
-from . import ff
+import numpy as np
 
 _model = None
 
@@ -16,16 +16,17 @@ def transcribe(path, cfg):
         dev = cfg.get("whisper_device", "cpu")
         _model = WhisperModel(cfg.get("whisper_model", "small.en"), device=dev,
                               compute_type="int8" if dev == "cpu" else "float16")
-    wav = path + ".w.wav"
-    ff.ffmpeg(["-i", path, "-vn", "-ac", "1", "-ar", "16000", wav])
-    try:
-        segs, _ = _model.transcribe(wav, word_timestamps=True, language="en", beam_size=1,
-                                    condition_on_previous_text=False)
-        out = [[w.word.strip(), round(w.start, 2), round(w.end, 2)]
-               for s in segs for w in (s.words or [])]
-    finally:
-        if os.path.exists(wav):
-            os.remove(wav)
+    # Decode with ffmpeg ourselves and hand whisper the samples. (Passing a file makes
+    # faster-whisper open it with PyAV, which breaks on some PyAV versions.)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-i", path, "-vn", "-ac", "1",
+                          "-ar", "16000", "-f", "s16le", "-"], capture_output=True).stdout
+    audio = np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
+    if len(audio) < 1600:
+        return []
+    segs, _ = _model.transcribe(audio, word_timestamps=True, language="en", beam_size=1,
+                                condition_on_previous_text=False)
+    out = [[w.word.strip(), round(w.start, 2), round(w.end, 2)]
+           for s in segs for w in (s.words or [])]
     return [w for w in out if re.search(r"\w", w[0])]
 
 
