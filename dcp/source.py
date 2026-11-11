@@ -14,8 +14,9 @@ def hms(t):
     return f"{t // 3600}:{t % 3600 // 60:02d}:{t % 60:02d}"
 
 
-def ytdlp(args):
-    return ff.run([sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-warnings"] + args)
+def ytdlp(args, timeout=1200):
+    return ff.run([sys.executable, "-m", "yt_dlp", "--no-playlist", "--no-warnings",
+                   "--socket-timeout", "30"] + args, timeout=timeout)
 
 
 def fetch_window(episode, a, b, out, local_file=""):

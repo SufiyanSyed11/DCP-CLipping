@@ -195,7 +195,7 @@ def add_manual(cfg, proj, clip, i, ref, t, log):
             raise RuntimeError("Give a YouTube link, a video ID or a file path.")
         vid = m.group(1)
         log(f"  downloading {vid}")
-        path = broll.download(vid, cfg)
+        path = broll.download(vid, cfg, full=True)
     fr = broll.frame_at(path, t + 1)
     fx = broll.face_fx(fr) if fr is not None else None
     c = {"vid": vid, "path": path, "title": "added by hand", "channel": "", "t": float(t),

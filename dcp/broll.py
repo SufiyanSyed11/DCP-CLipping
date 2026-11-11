@@ -10,6 +10,7 @@ import numpy as np
 from . import ff, vision
 from .config import ASSETS
 
+FULL_MAX = 720               # videos up to 12 minutes are downloaded whole
 CW, CH = 1216, 1080          # 9:8 crop taken from footage scaled to cover this box
 STOP = set("""a an the of and or in on at to for with from his her their vs then no
 footage shots shot close ups closeup clip clips official moments moment style video
@@ -19,8 +20,11 @@ real best men only people showing if clean prep""".split())
 # ---------------------------------------------------------------- search / download
 def search(query, cfg):
     n = int(cfg["broll_search_results"])
-    r = ff.run([sys.executable, "-m", "yt_dlp", "--no-warnings", "--flat-playlist", "-J",
-                f"ytsearch{n}:{query}"], check=False)
+    try:
+        r = ff.run([sys.executable, "-m", "yt_dlp", "--no-warnings", "--flat-playlist", "-J",
+                    "--socket-timeout", "30", f"ytsearch{n}:{query}"], check=False, timeout=120)
+    except RuntimeError:
+        return []
     try:
         entries = json.loads(r.stdout).get("entries") or []
     except Exception:
@@ -33,21 +37,26 @@ def search(query, cfg):
         if any(b in ch.lower() for b in bad) or not e.get("id") or dur and dur < 6:
             continue
         out.append({"vid": e["id"], "title": e.get("title") or "", "channel": ch, "duration": dur})
+    # short videos first: they download whole and fast; long ones need a slow partial download
+    out.sort(key=lambda v: not (0 < v["duration"] <= FULL_MAX))
     return out
 
 
-def download(vid, cfg):
-    """Video-only download of the first few minutes, cached by id."""
+def download(vid, cfg, duration=0, full=False):
+    """Video-only download, cached by id. Short videos (or full=True) are fetched whole, which
+    is fast; for long ones only the first few minutes are fetched, which is slow."""
     cache = os.path.join(cfg["work_dir"], "_broll_cache")
     os.makedirs(cache, exist_ok=True)
     out = os.path.join(cache, vid + ".mp4")
     if os.path.exists(out) and os.path.getsize(out) > 10000:
         return out
     from .source import hms, ytdlp
-    ytdlp(["-f", "bv*[height<=1080][ext=mp4]/bv*[height<=1080]/b[height<=1080]/b",
-           "--download-sections", f"*0:00:00-{hms(cfg['broll_max_seconds'])}",
-           "--merge-output-format", "mp4", "-o", os.path.join(cache, vid + ".%(ext)s"),
-           f"https://www.youtube.com/watch?v={vid}"])
+    args = ["-f", "bv*[height<=1080][ext=mp4]/bv*[height<=1080]/b[height<=1080]/b",
+            "--concurrent-fragments", "4", "--merge-output-format", "mp4",
+            "-o", os.path.join(cache, vid + ".%(ext)s")]
+    if not full and not (0 < duration <= FULL_MAX):
+        args += ["--download-sections", f"*0:00:00-{hms(cfg['broll_max_seconds'])}"]
+    ytdlp(args + [f"https://www.youtube.com/watch?v={vid}"], timeout=900)
     if not os.path.exists(out):
         raise RuntimeError(f"could not download {vid}")
     return out
@@ -191,6 +200,7 @@ def candidates(item, cfg, thumb_dir, tag, log=print):
         fx = item["fixed"]
         vids = [{"vid": fx["vid"], "title": "from the slate", "channel": "", "fixed_t": fx["t"]}]
     else:
+        log("    searching YouTube")
         vids = search(item["search"], cfg)
         if not vids:
             log(f"  no search results for: {item['search']}")
@@ -199,7 +209,9 @@ def candidates(item, cfg, thumb_dir, tag, log=print):
         if got >= int(cfg["broll_downloads"]):
             break
         try:
-            path = download(v["vid"], cfg)
+            mins = f" ({int(v['duration']) // 60}:{int(v['duration']) % 60:02d})" if v.get("duration") else ""
+            log(f"    downloading: {v['title'][:60]}{mins}")
+            path = download(v["vid"], cfg, v.get("duration") or 0, full="fixed_t" in v)
         except Exception as ex:
             log(f"  skip {v['vid']}: {str(ex).splitlines()[-1][:120]}")
             continue
@@ -207,6 +219,7 @@ def candidates(item, cfg, thumb_dir, tag, log=print):
         if "fixed_t" in v:
             wins = [{"t": v["fixed_t"], "score": 1.0}]
         elif ai:
+            log("    picking the best moments")
             wins = best_windows(path, text)
         else:
             d = ff.duration(path)

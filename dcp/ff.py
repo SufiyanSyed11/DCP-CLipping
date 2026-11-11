@@ -19,9 +19,13 @@ def log(*a):
     _log(" ".join(str(x) for x in a))
 
 
-def run(args, cwd=None, check=True):
-    r = subprocess.run([str(a) for a in args], cwd=cwd, capture_output=True,
-                       text=True, encoding="utf-8", errors="replace")
+def run(args, cwd=None, check=True, timeout=None):
+    try:
+        r = subprocess.run([str(a) for a in args], cwd=cwd, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL,
+                           timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"{args[0]} took longer than {timeout}s and was stopped")
     if check and r.returncode != 0:
         tail = (r.stderr or r.stdout or "")[-1500:]
         raise RuntimeError(f"{args[0]} failed:\n{tail}")

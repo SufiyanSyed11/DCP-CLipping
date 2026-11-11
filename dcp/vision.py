@@ -24,6 +24,8 @@ def _load():
         import open_clip
         import torch
         dev = "cuda" if torch.cuda.is_available() else "cpu"
+        from . import ff
+        ff.log(f"    loading the AI picker on {dev} (the first time downloads about 600 MB)")
         model, _, pre = open_clip.create_model_and_transforms(
             "ViT-B-32", pretrained="laion2b_s34b_b79k", device=dev)
         model.eval()
@@ -60,6 +62,8 @@ def text_fraction(frame):
         if _ocr is None:
             import easyocr
             import torch
+            from . import ff
+            ff.log("    loading the on-screen text checker (the first time downloads its model)")
             _ocr = easyocr.Reader(["en"], gpu=torch.cuda.is_available(), verbose=False)
         h, w = frame.shape[:2]
         area = 0.0
