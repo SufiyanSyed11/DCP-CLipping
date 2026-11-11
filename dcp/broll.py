@@ -32,6 +32,8 @@ def search(query, cfg):
     bad = [c.lower() for c in cfg["rejected_channels"]]
     out = []
     for e in entries:
+        if not e:
+            continue
         ch = (e.get("channel") or e.get("uploader") or "")
         dur = e.get("duration") or 0
         if any(b in ch.lower() for b in bad) or not e.get("id") or dur and dur < 6:
